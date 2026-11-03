@@ -64,6 +64,8 @@ Configured workflows retain their own states, conditions, roles, and permitted a
 
 </details>
 
+The Desk page opens in **Draft — Not Final** with **All Modules** selected. The recent-record and date limits still apply.
+
 ## Two flows, detected automatically
 
 | Document configuration | My Work behaviour |
@@ -196,3 +198,8 @@ Issues and pull requests are welcome. Describe the DocType, native/workflow mode
 ## License
 
 [MIT](license.txt) · Maintained by [ERPNEXT-PAKISTAN](https://github.com/ERPNEXT-PAKISTAN).
+
+
+Assigned ToDos include a concise readable linked-entry summary and amount in the list. Review shows the referenced document's key facts and primary expense/item/reference table first; assignment metadata is collapsed below. The linked preview is read only, respects source field/table permissions, and includes a link to its native form. Complete Task and assignment comments still target the ToDo, not the linked business document. Closed assignments retain the same preview under Completed. Task-to-task links are not followed recursively.
+
+ToDo Review includes an Assignment Description editor with Save Description and Reset. It uses the native rich-text control, preserves existing formatting, and saves through ToDo.save with normal write/field/workflow permissions, ownership recheck and a row/version lock. Description changes do not complete the task or submit the referenced document. Unsaved description changes block document actions; comments remain independent.

@@ -104,3 +104,27 @@ def loading_performance(user=None):
         return dict(results=results,mutations_performed=0)
     finally:
         frappe.set_user(previous)
+
+
+def assignment_context(reference_type,reference_name):
+    """Read-only check under each actual assignee; never completes assignments."""
+    previous=frappe.session.user
+    results=[]
+    tasks=frappe.get_all('ToDo',filters={'reference_type':reference_type,'reference_name':reference_name},fields=['name','allocated_to','status'],limit_page_length=10)
+    try:
+        for task in tasks:
+            frappe.set_user(task.allocated_to)
+            if 'Desk User' not in frappe.get_roles():continue
+            try:
+                data=api.review('ToDo',task.name)['data']
+            except frappe.PermissionError:
+                results.append(dict(status=task.status,linked_readable=False));continue
+            linked=data['linked_document']
+            assert data['doctype']=='ToDo' and data['name']==task.name
+            if linked:
+                assert linked['doctype']==reference_type and linked['name']==reference_name
+                assert not any(key in linked for key in ['actions','tools','activity'])
+            results.append(dict(assignment_status=task.status,linked_readable=bool(linked),fact_count=len(linked['summary_fields']) if linked else 0,tables=[dict(label=t['label'],rows=len(t['rows'])) for t in linked['tables']] if linked else [],can_complete=data['can_complete'],description_editable=bool((data.get('task_description') or {}).get('editable'))))
+        return dict(assignments_checked=results,mutations_performed=0)
+    finally:
+        frappe.set_user(previous)

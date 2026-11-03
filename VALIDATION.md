@@ -55,3 +55,7 @@ These helpers inspect readable existing records. The local CLI's effective user 
 ## Before a broad production rollout
 
 Validate actual submit/cancel, amendment, permissions, user/company restrictions, custom workflows, financial/stock hooks, and concurrent use on staging. Keep the site's existing backup and recovery process. Performance measurements on one dataset are observations, not a guarantee for every deployment.
+
+Linked assignment previews: 138 Python and 35 JavaScript checks pass. Coverage includes source-read denial, readable financial facts, readonly DTO whitelisting, task-link recursion avoidance, escaped previews and completing the ToDo rather than its referenced document. The generic `assignment_context(reference_type, reference_name)` CLI helper can perform authorized read-only checks of existing assignees. It does not reopen/complete tasks or modify the linked entry.
+
+ToDo description editor: 142 Python and 37 JavaScript checks passed. Includes versioned native save, preserved closed status, reassignment/readonly/empty-input denial, rich-text sanitation, standalone native control setup, reset/dirty handling, blocked completion while unsaved and independent comment draft retention. Existing assignees were checked read-only for editable description flags; no live description was modified for testing. CSS parsed and assets rebuilt.

@@ -469,7 +469,9 @@ def _rows(sources=None, scope=None, options=None):
             linked = bool(task.reference_type and task.reference_name)
             if linked and not frappe.has_permission(task.reference_type, "read", doc=task.reference_name):
                 continue
-            rows.append(dict(doctype="ToDo", name=task.name, module="Tasks", title=strip_html(task.description or ""), owner=task.assigned_by, requested_by=task.assigned_by, creation=task.creation, modified=task.modified, due_date=task.date, priority=task.priority, status=task.status, state=task.status, actions=[], views=["assigned"] if task.status == "Open" else (["completed"] if task.status == "Closed" else ["cancelled"]), kind="task", document_status="Recorded", reference_type=task.reference_type, reference_name=task.reference_name))
+            from my_work.assignment_details import reference_brief
+            brief = reference_brief(task) if linked else None
+            rows.append(dict(reference_summary=brief, amount=brief["amount"] if brief else None, amount_label=brief["amount_label"] if brief else None, currency=brief["currency"] if brief else None, doctype="ToDo", name=task.name, module="Tasks", title=strip_html(task.description or ""), owner=task.assigned_by, requested_by=task.assigned_by, creation=task.creation, modified=task.modified, due_date=task.date, priority=task.priority, status=task.status, state=task.status, actions=[], views=["assigned"] if task.status == "Open" else (["completed"] if task.status == "Closed" else ["cancelled"]), kind="task", document_status="Recorded", reference_type=task.reference_type, reference_name=task.reference_name))
             continue
         permitted = set(get_permitted_fields(meta.name))
         try:
@@ -615,7 +617,15 @@ def review(doctype, name):
         from my_work.document_details import child_tables
         tables = child_tables(doc, meta, SAFE_TYPES)
     from my_work.document_events import recorded_events
-    return {"data": {"document_events": recorded_events(doc), "doctype": doc.doctype, "name": doc.name, "owner": doc.owner, "creation": doc.creation, "modified": doc.modified, "state": doc.get(wf.workflow_state_field) if wf and wf.workflow_state_field in permitted else (_state_info(doc, None)[0] if not wf else None), "flow_mode": "workflow" if wf else "standard" if meta.is_submittable else "record", "is_submittable": bool(meta.is_submittable), "business_status": doc.get("status") if "status" in permitted else None, "additional_fields": additional_fields, "remark_fields": remark_fields, "docstatus": cint(doc.docstatus), "fields": fields, "tools": _tools(doc, wf, permitted), "summary_fields": _expense_summary(doc, permitted, child_fields) if doctype == "Expense Claim" and not _config().get("display_fields", {}).get(doctype) else fields, "currency": doc.get("currency") if "currency" in permitted else None, "next_states": sorted({t.next_state for t in _required_transitions(doc, wf)}) if wf else [] if not meta.is_submittable else (["Submitted"] if cint(doc.docstatus) == 0 else ["Cancelled"] if cint(doc.docstatus) == 1 else []), "status_info": _expense_status(doc, wf, permitted) if doctype == "Expense Claim" else None, "status_summary": describe_status(doc, meta, wf, permitted, _expense_status(doc, wf, permitted) if doctype == "Expense Claim" else None), "workflow_notices": _workflow_notices(doc, wf), "can_print": bool(doc.has_permission("print")), "settlement": _claim_settlement(doc, permitted, meta) if doctype == "Expense Claim" else None, "tables": tables, "actions": _actions(doc, wf), "history": _history(doc), "next_roles": _state_info(doc, wf)[3] if wf else [], "activity": frappe.get_all("Comment", filters={"reference_doctype": doc.doctype, "reference_name": doc.name, "comment_type": "Comment"}, fields=["creation", "owner", "comment_by", "content"], order_by="creation desc", limit_page_length=50), "can_complete": doctype == "ToDo" and doc.status == "Open", "attachments": _attachments(doc), "attachments_note": _("Attachments open through Frappe with normal file permissions.")}}
+    from my_work.assignment_details import reference_review
+    linked_document = reference_review(doc) if doctype == "ToDo" else None
+    task_description = None
+    if doctype == "ToDo" and "description" in permitted:
+        from my_work.claim_tools import _draft_editable, _field_writable
+        field = meta.get_field("description")
+        if field and not field.hidden:
+            task_description = dict(value=frappe.utils.sanitize_html(cstr(doc.get("description")), always_sanitize=True), editable=bool(_draft_editable(doc, wf) and _field_writable(doc, field)))
+    return {"data": {"linked_document": linked_document, "task_description": task_description, "document_events": recorded_events(doc), "doctype": doc.doctype, "name": doc.name, "owner": doc.owner, "creation": doc.creation, "modified": doc.modified, "state": doc.get(wf.workflow_state_field) if wf and wf.workflow_state_field in permitted else (_state_info(doc, None)[0] if not wf else None), "flow_mode": "workflow" if wf else "standard" if meta.is_submittable else "record", "is_submittable": bool(meta.is_submittable), "business_status": doc.get("status") if "status" in permitted else None, "additional_fields": additional_fields, "remark_fields": remark_fields, "docstatus": cint(doc.docstatus), "fields": fields, "tools": _tools(doc, wf, permitted), "summary_fields": _expense_summary(doc, permitted, child_fields) if doctype == "Expense Claim" and not _config().get("display_fields", {}).get(doctype) else fields, "currency": doc.get("currency") if "currency" in permitted else None, "next_states": sorted({t.next_state for t in _required_transitions(doc, wf)}) if wf else [] if not meta.is_submittable else (["Submitted"] if cint(doc.docstatus) == 0 else ["Cancelled"] if cint(doc.docstatus) == 1 else []), "status_info": _expense_status(doc, wf, permitted) if doctype == "Expense Claim" else None, "status_summary": describe_status(doc, meta, wf, permitted, _expense_status(doc, wf, permitted) if doctype == "Expense Claim" else None), "workflow_notices": _workflow_notices(doc, wf), "can_print": bool(doc.has_permission("print")), "settlement": _claim_settlement(doc, permitted, meta) if doctype == "Expense Claim" else None, "tables": tables, "actions": _actions(doc, wf), "history": _history(doc), "next_roles": _state_info(doc, wf)[3] if wf else [], "activity": frappe.get_all("Comment", filters={"reference_doctype": doc.doctype, "reference_name": doc.name, "comment_type": "Comment"}, fields=["creation", "owner", "comment_by", "content"], order_by="creation desc", limit_page_length=50), "can_complete": doctype == "ToDo" and doc.status == "Open", "attachments": _attachments(doc), "attachments_note": _("Attachments open through Frappe with normal file permissions.")}}
 
 
 @frappe.whitelist()
@@ -683,6 +693,23 @@ def act(doctype, name, action, modified, remarks=None):
         return {"data": {"name": doc.name, "modified": doc.modified, "queued": True}}
     result.add_comment("Workflow", _("My Work: {0}").format(escape(action)) + ("<br>" + escape(remarks) if remarks else ""))
     return {"data": {"name": result.name, "modified": result.modified, "queued": False}}
+
+
+@frappe.whitelist(methods=["POST"])
+def update_task_description(name, modified, description):
+    from my_work.claim_tools import _locked, _field_writable
+    doc = _locked("ToDo", name, modified, draft=True)
+    if doc.allocated_to != frappe.session.user:
+        frappe.throw(_("Assignment is no longer yours"), frappe.PermissionError)
+    field = frappe.get_meta("ToDo").get_field("description")
+    if not _field_writable(doc, field):
+        frappe.throw(_("You cannot edit the assignment description"), frappe.PermissionError)
+    description = frappe.utils.sanitize_html(cstr(description), always_sanitize=True)
+    if not strip_html(description).strip() and "<img" not in description.lower():
+        frappe.throw(_("Assignment Description is required"))
+    doc.description = description
+    doc.save()
+    return {"data": {"name": doc.name, "modified": doc.modified}}
 
 
 @frappe.whitelist(methods=["POST"])

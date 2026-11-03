@@ -77,9 +77,11 @@ test('empty results show a useful state without invented rows',async()=>{
     assert.equal($('.mw-results tbody tr').length,0);assert.match($('.mw-empty h3').text(),/caught up/);dom.window.close();
 });
 
-test('all work is the default and claim status filtering reaches the server',async()=>{
+test('drafts across all modules is the default and claim status filtering reaches the server',async()=>{
     const {dom,$,app,calls,dashboard}=await setup();
-    assert.equal(app.state.view,'all');
+    assert.equal(app.state.view,'drafts');
+    assert.equal(app.state.module,'');assert.equal(app.state.doctype,'');
+    assert.equal(calls[0].args.view,'drafts');
     dashboard.statuses=['Paid','Rejected'];await app.load();
     $('.mw-claim_status').val('Rejected').trigger('change');await tick();
     assert.equal(calls.at(-1).args.claim_status,'Rejected');dom.window.close();
@@ -393,5 +395,71 @@ test('Document Flow shows the recorded submitter and date, not creator or last e
     await app.review(row);
     assert.match($('.mw-submission-event').text(),/Submitted by Sara Approver2026-02-02 11:45:00/);
     assert.equal($('.mw-workflow-steps .mw-event-actor').text(),'Cancelled by Manager');
+    dom.window.close();
+});
+
+test('assignment review shows linked expense facts and lines while completion targets the ToDo',async()=>{
+    const {dom,$,app,row,review,calls}=await setup();
+    Object.assign(row,{doctype:'ToDo',name:'TODO-DEMO'});
+    Object.assign(review,{doctype:'ToDo',name:'TODO-DEMO',flow_mode:'record',docstatus:0,state:'Open',business_status:'Open',actions:[],can_complete:true,summary_fields:[{fieldname:'status',label:'Status',value:'Open'}],tables:[],linked_document:{doctype:'Expense Claim',name:'DEMO-EXP-1',currency:'PKR',summary_fields:[{fieldname:'employee',label:'Employee',value:'Demo Employee'},{fieldname:'total_claimed_amount',label:'Claim Amount',fieldtype:'Currency',value:15000},{fieldname:'status',label:'Entry status',value:'Unpaid'}],remark_fields:[],tables:[{label:'Expense Details',columns:['expense_type','description','amount'],rows:[{expense_type:'Travel',description:'Demo customer trip',amount:15000}],total:15000}]}});
+    await app.review(row);
+    assert.match($('.mw-linked-entry').text(),/Demo Employee/);
+    assert.match($('.mw-linked-facts').text(),/Rs 15,000/);
+    assert.match($('.mw-linked-entry .mw-expense-card').text(),/Demo customer trip/);
+    assert.equal($('.mw-action').length,0);assert.equal($('.mw-complete').length,1);
+    $('.mw-complete').trigger('click');await tick();
+    const completed=calls.find(c=>c.method.endsWith('.complete_task'));
+    assert.equal(completed.args.name,'TODO-DEMO');
+    assert.equal(calls.some(c=>c.method.endsWith('.act')),false);
+    dom.window.close();
+});
+
+test('assignment rows show concise source facts and reference without exposing source actions',async()=>{
+    const {dom,$,app,row}=await setup();
+    Object.assign(row,{doctype:'ToDo',kind:'task',name:'TODO-DEMO',reference_type:'Expense Claim',reference_name:'DEMO-EXP-1',reference_summary:{fields:[{label:'Employee',value:'Demo <Employee>'},{label:'Entry status',value:'Unpaid'}]},actions:[]});
+    await app.load();
+    assert.match($('.mw-assigned-facts').text(),/EmployeeDemo <Employee>/);
+    assert.equal($('.mw-assigned-facts Employee').length,0);
+    assert.match($('.mw-linked').text(),/DEMO-EXP-1/);
+    assert.equal($('.mw-main-submit').length,0);
+    dom.window.close();
+});
+
+test('assignment description saves separately and blocks completion while unsaved',async()=>{
+    const {dom,w,$,app,row,review,calls}=await setup();
+    Object.assign(row,{doctype:'ToDo',name:'TODO-DEMO'});
+    Object.assign(review,{doctype:'ToDo',name:'TODO-DEMO',flow_mode:'record',actions:[],can_complete:true,task_description:{value:'<p>Original instruction</p>',editable:true}});
+    w.frappe.msgprint=()=>{};
+    await app.review(row);
+    assert.equal($('.mw-task-description').val(),'Original instruction');
+    $('.mw-task-description').val('Updated instruction').trigger('input');
+    assert.equal($('.mw-save-task-description').prop('disabled'),false);
+    assert.equal($('.mw-complete').prop('disabled'),true);
+    app.confirmAction(review,null,row);await tick();
+    assert.equal(calls.some(c=>c.method.endsWith('.complete_task')),false);
+    $('.mw-remarks').val('Unposted comment').trigger('input');
+    $('.mw-save-task-description').trigger('click');await tick();await tick();
+    const save=calls.find(c=>c.method.endsWith('.update_task_description'));
+    assert.equal(save.args.name,'TODO-DEMO');assert.equal(save.args.modified,row.modified);
+    assert.match(save.args.description,/Updated instruction/);
+    assert.equal($('.mw-remarks').val(),'Unposted comment');
+    assert.equal(calls.some(c=>c.method.endsWith('.act')||c.method.endsWith('.add_comment')),false);
+    dom.window.close();
+});
+
+test('assignment description uses a standalone native rich text control when available',async()=>{
+    const {dom,w,$,app,row,review}=await setup();
+    let options,input;
+    w.frappe.ui.form={make_control:opts=>{options=opts;input=$('<textarea>').appendTo(opts.parent);return {set_value:async value=>{input.val(value);opts.df.change();},get_value:()=>input.val()};}};
+    Object.assign(review,{doctype:'ToDo',name:'TODO-DEMO',actions:[],flow_mode:'record',task_description:{value:'<p><strong>Keep formatting</strong></p>',editable:true}});
+    await app.review(row);
+    assert.equal(options.df.fieldtype,'Text Editor');assert.equal(options.doctype,undefined);
+    assert.equal(input.val(),'<p><strong>Keep formatting</strong></p>');
+    assert.equal($('.mw-save-task-description').prop('disabled'),true);
+    input.val('<p>Changed text</p>');options.df.change();
+    assert.equal($('.mw-save-task-description').prop('disabled'),false);
+    $('.mw-reset-task-description').trigger('click');await tick();
+    assert.equal(input.val(),'<p><strong>Keep formatting</strong></p>');
+    assert.equal($('.mw-save-task-description').prop('disabled'),true);
     dom.window.close();
 });
