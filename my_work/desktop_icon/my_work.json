@@ -1,0 +1,20 @@
+{
+  "doctype": "Desktop Icon",
+  "name": "My Work",
+  "label": "My Work",
+  "app": "my_work",
+  "bg_color": "gray",
+  "icon": "check",
+  "icon_type": "App",
+  "link": "/app/my-work",
+  "link_type": "External",
+  "logo_url": "/assets/my_work/images/my-work.svg",
+  "standard": 1,
+  "hidden": 0,
+  "sidebar": "My Work",
+  "roles": [
+    {
+      "role": "Desk User"
+    }
+  ]
+}

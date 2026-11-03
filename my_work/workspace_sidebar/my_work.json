@@ -1,0 +1,18 @@
+{
+  "doctype": "Workspace Sidebar",
+  "name": "My Work",
+  "title": "My Work",
+  "module": "My Work",
+  "app": "my_work",
+  "standard": 1,
+  "header_icon": "check",
+  "items": [
+    {
+      "label": "My Work",
+      "type": "Link",
+      "link_type": "Page",
+      "link_to": "my-work",
+      "icon": "check"
+    }
+  ]
+}

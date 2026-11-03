@@ -1,0 +1,263 @@
+{
+  "workflow": {
+    "states": [
+      {
+        "state": "Draft",
+        "doc_status": "0",
+        "allow_edit": "Employee",
+        "update_field": "approval_status",
+        "update_value": "Draft",
+        "is_optional_state": 0,
+        "avoid_status_override": 1,
+        "workflow_builder_id": "1"
+      },
+      {
+        "state": "Pending",
+        "doc_status": "0",
+        "allow_edit": "Expense Approver",
+        "update_field": "approval_status",
+        "update_value": "Draft",
+        "is_optional_state": 0,
+        "avoid_status_override": 1,
+        "workflow_builder_id": "2"
+      },
+      {
+        "state": "Approved",
+        "doc_status": "1",
+        "allow_edit": "Expense Approver",
+        "update_field": "approval_status",
+        "update_value": "Approved",
+        "is_optional_state": 0,
+        "avoid_status_override": 1,
+        "workflow_builder_id": "3"
+      },
+      {
+        "state": "Request Rejected",
+        "doc_status": "0",
+        "allow_edit": "Expense Approver",
+        "update_field": "approval_status",
+        "update_value": "Rejected",
+        "is_optional_state": 0,
+        "avoid_status_override": 1,
+        "workflow_builder_id": "4"
+      },
+      {
+        "state": "Returned",
+        "doc_status": "0",
+        "allow_edit": "Employee",
+        "update_field": "approval_status",
+        "update_value": "Draft",
+        "is_optional_state": 0,
+        "avoid_status_override": 1,
+        "workflow_builder_id": "5"
+      },
+      {
+        "state": "Cancelled",
+        "doc_status": "2",
+        "allow_edit": "Expense Approver",
+        "update_field": "approval_status",
+        "update_value": "Cancelled",
+        "is_optional_state": 1,
+        "avoid_status_override": 1,
+        "workflow_builder_id": "6"
+      },
+      {
+        "state": "Rejected",
+        "doc_status": "2",
+        "allow_edit": "Expense Approver",
+        "update_field": null,
+        "update_value": null,
+        "is_optional_state": 1,
+        "avoid_status_override": 1,
+        "workflow_builder_id": "7"
+      }
+    ],
+    "transitions": [
+      {
+        "state": "Draft",
+        "action": "Submit for Approval",
+        "next_state": "Pending",
+        "allowed": "Employee",
+        "allow_self_approval": 1,
+        "workflow_builder_id": "action-1"
+      },
+      {
+        "state": "Pending",
+        "action": "Approve",
+        "next_state": "Approved",
+        "allowed": "Expense Approver",
+        "allow_self_approval": 1,
+        "workflow_builder_id": "action-2"
+      },
+      {
+        "state": "Pending",
+        "action": "Reject",
+        "next_state": "Request Rejected",
+        "allowed": "Expense Approver",
+        "allow_self_approval": 1,
+        "workflow_builder_id": "action-3"
+      },
+      {
+        "state": "Pending",
+        "action": "Return",
+        "next_state": "Returned",
+        "allowed": "Expense Approver",
+        "allow_self_approval": 1,
+        "workflow_builder_id": "action-4"
+      },
+      {
+        "state": "Returned",
+        "action": "Resubmit",
+        "next_state": "Pending",
+        "allowed": "Employee",
+        "allow_self_approval": 1,
+        "workflow_builder_id": "action-5"
+      },
+      {
+        "state": "Approved",
+        "action": "Cancel",
+        "next_state": "Cancelled",
+        "allowed": "Expense Approver",
+        "allow_self_approval": 1,
+        "workflow_builder_id": "action-6"
+      }
+    ]
+  },
+  "layout": [
+    {
+      "id": "1",
+      "type": "state",
+      "position": {
+        "x": 50,
+        "y": 120
+      },
+      "data": {}
+    },
+    {
+      "id": "2",
+      "type": "state",
+      "position": {
+        "x": 650,
+        "y": 120
+      },
+      "data": {}
+    },
+    {
+      "id": "3",
+      "type": "state",
+      "position": {
+        "x": 1250,
+        "y": 120
+      },
+      "data": {}
+    },
+    {
+      "id": "4",
+      "type": "state",
+      "position": {
+        "x": 1250,
+        "y": 500
+      },
+      "data": {}
+    },
+    {
+      "id": "5",
+      "type": "state",
+      "position": {
+        "x": 1250,
+        "y": 880
+      },
+      "data": {}
+    },
+    {
+      "id": "6",
+      "type": "state",
+      "position": {
+        "x": 1850,
+        "y": 120
+      },
+      "data": {}
+    },
+    {
+      "id": "7",
+      "type": "state",
+      "position": {
+        "x": 1850,
+        "y": 500
+      },
+      "data": {}
+    },
+    {
+      "id": "action-1",
+      "type": "action",
+      "position": {
+        "x": 350,
+        "y": 140
+      },
+      "data": {
+        "from_id": "1",
+        "to_id": "2"
+      }
+    },
+    {
+      "id": "action-2",
+      "type": "action",
+      "position": {
+        "x": 950,
+        "y": 140
+      },
+      "data": {
+        "from_id": "2",
+        "to_id": "3"
+      }
+    },
+    {
+      "id": "action-3",
+      "type": "action",
+      "position": {
+        "x": 950,
+        "y": 520
+      },
+      "data": {
+        "from_id": "2",
+        "to_id": "4"
+      }
+    },
+    {
+      "id": "action-4",
+      "type": "action",
+      "position": {
+        "x": 950,
+        "y": 900
+      },
+      "data": {
+        "from_id": "2",
+        "to_id": "5"
+      }
+    },
+    {
+      "id": "action-5",
+      "type": "action",
+      "position": {
+        "x": 350,
+        "y": 1100
+      },
+      "data": {
+        "from_id": "5",
+        "to_id": "2"
+      }
+    },
+    {
+      "id": "action-6",
+      "type": "action",
+      "position": {
+        "x": 1550,
+        "y": 140
+      },
+      "data": {
+        "from_id": "3",
+        "to_id": "6"
+      }
+    }
+  ]
+}

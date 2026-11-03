@@ -1,0 +1,14 @@
+{
+  "doctype": "Page",
+  "name": "my-work",
+  "page_name": "my-work",
+  "title": "My Work",
+  "module": "My Work",
+  "standard": "Yes",
+  "system_page": 0,
+  "roles": [
+    {
+      "role": "Desk User"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "my-work-ui-tests",
+  "private": true,
+  "scripts": {
+    "test": "node --test test_dashboard.cjs test_routes.cjs test_workflow_diagram.cjs"
+  },
+  "devDependencies": {
+    "jsdom": "30.1.3"
+  }
+}

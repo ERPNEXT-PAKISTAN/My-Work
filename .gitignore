@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+node_modules/
+dist/
+
+# Local credentials, site data and generated previews
+.env
+.env.*
+!.env.example
+sites/
+*.log
+.local/
+.DS_Store
