@@ -135,7 +135,7 @@ class MyWork {
             <section id="mw-review-panel-history" role="tabpanel" aria-labelledby="mw-review-tab-history" class="mw-review-panel" data-panel="history" hidden><h3>${__('Approval History')}</h3>${history}</section>
             <section id="mw-review-panel-activity" role="tabpanel" aria-labelledby="mw-review-tab-activity" class="mw-review-panel" data-panel="activity" hidden><h3>${__('Activity')}</h3><div class="mw-activity"><strong>${__('Last document update')}</strong><small>${this.esc(frappe.datetime.str_to_user(d.modified))}</small></div><div class="mw-comment-history">${this.activityList(d)}</div>${history}</section></div>
             <footer><div class="mw-comment-composer"><label class="mw-remarks-label">${d.doctype==='ToDo'?__('Assignment comment (optional)'):__('Remarks / Comment (optional)')}<textarea class="form-control mw-remarks" maxlength="10000" rows="2" placeholder="${__('Write a comment…')}" aria-label="${__('Document comment')}"></textarea></label><div class="mw-comment-controls"><button class="btn mw-primary mw-add-comment" disabled>${__('Add Comment')}</button><small>${__('Comments do not change document status.')}</small></div></div><div class="mw-action-buttons">${d.flow_mode&&d.doctype!=='Expense Claim'?`<a class="btn btn-default mw-open-native" href="${frappe.utils.get_form_link(d.doctype,d.name)}">${d.tools?.can_edit?__('Edit document'):__('Open document')}</a>`:''}${d.actions.map((a,i)=>`<button class="btn mw-action ${this.actionClass(a)}" data-action-index="${i}">${this.icon(/reject|decline|cancel/i.test(a)?'x':/return|correction/i.test(a)?'arrow':'check')}${this.esc(a)}</button>`).join('')}${d.can_complete?`<button class="btn mw-primary mw-complete">${this.icon('check')}${__('Complete Task')}</button>`:''}${!d.actions.length&&!d.can_complete?`<span class="mw-note">${__('No document actions available at this stage.')}</span>`:''}</div></footer>`);
-            drawer.find('.mw-close').trigger('focus');drawer.find('.mw-action').on('click',e=>this.confirmAction(d,d.actions[Number(e.currentTarget.dataset.actionIndex)],row));drawer.find('.mw-complete').on('click',()=>this.confirmAction(d,null,row));this.bindDocumentTools(d,row);await this.bindTaskDescription(d,row);drawer.find('.mw-remarks').on('input',()=>drawer.find('.mw-add-comment').prop('disabled',!drawer.find('.mw-remarks').val().trim()));drawer.find('.mw-add-comment').on('click',()=>this.postComment(d));
+            drawer.find('.mw-close').trigger('focus');drawer.find('.mw-action').on('click',e=>this.confirmAction(d,d.actions[Number(e.currentTarget.dataset.actionIndex)],row));drawer.find('.mw-complete').on('click',()=>this.confirmAction(d,null,row));this.bindDocumentTools(d,row);if(d.tools?.date_editor){const datesButton=$('<button class="btn btn-default mw-edit-dates"></button>').text(__('Edit Dates'));drawer.find('.mw-action-buttons').prepend(datesButton);datesButton.on('click',()=>this.editInvoiceDates(d,row));}await this.bindTaskDescription(d,row);drawer.find('.mw-remarks').on('input',()=>drawer.find('.mw-add-comment').prop('disabled',!drawer.find('.mw-remarks').val().trim()));drawer.find('.mw-add-comment').on('click',()=>this.postComment(d));
         }catch(error){if(token===this.reviewSequence)drawer.find('.mw-drawer-body').html(`<div class="mw-empty"><h3>${__('Unable to load this request')}</h3><p>${__('Close the panel and refresh your inbox to try again.')}</p></div>`);}
     }
     async postComment(doc){
@@ -244,6 +244,21 @@ class MyWork {
         if(this.taskDescriptionDirty){frappe.msgprint(__('Save or reset the assignment description before taking another action.'));return false;}
         if(!this.claimDirty)return true;
         frappe.msgprint(__('Save or reset the selected Approval Status before taking another action.'));return false;
+    }
+    editInvoiceDates(d,row){
+        if(!this.ensureClean())return;
+        const editor=d.tools.date_editor;
+        const fields=editor.fields.map(f=>({fieldname:f.fieldname,fieldtype:'Date',label:f.label,default:f.value,reqd:f.fieldname!=='bill_date'}));
+        fields.push({fieldtype:'HTML',options:`<p class="text-muted">${__('Saving dates does not submit the invoice. Keep the original Posting Date for an old entry unless you intend to change its accounting date. Due Date must match the latest installment. Native payment-term and accounting validations still apply.')}</p>`});
+        editor.schedule.forEach((r,i)=>fields.push({fieldname:`installment_${i}`,fieldtype:'Date',label:__('Installment {0} Due Date',[r.idx]),default:r.due_date,reqd:1}));
+        const dialog=new frappe.ui.Dialog({title:__('Edit Invoice Dates'),fields,primary_action_label:__('Save Dates'),primary_action:async values=>{
+            const dates=Object.fromEntries(editor.fields.map(f=>[f.fieldname,values[f.fieldname]||null]));
+            const schedule=editor.schedule.map((r,i)=>({name:r.name,due_date:values[`installment_${i}`]}));
+            await this.tool('update_invoice_dates',{doctype:d.doctype,name:d.name,modified:d.modified,dates:JSON.stringify(dates),schedule:JSON.stringify(schedule)},dialog.get_primary_btn());
+            dialog.hide();await this.refreshReview(d,row);frappe.show_alert({message:__('Dates saved. Review the invoice before submitting.'),indicator:'green'});
+        }});
+        dialog.show();
+        editor.schedule.forEach((r,i)=>dialog.fields_dict[`installment_${i}`].df.change=()=>{const due=editor.schedule.map((_,j)=>dialog.get_value(`installment_${j}`)).filter(Boolean).sort().pop();if(due)dialog.set_value('due_date',due);});
     }
     async tool(method,args,btn){return (await frappe.call({method:`my_work.claim_tools.${method}`,args,btn})).message;}
     async refreshReview(d,row){const comment=this.root.find('.mw-remarks').val()||'';this.claimDirty=false;await this.load();await this.review(row);this.root.find('.mw-remarks').val(comment).trigger('input');}

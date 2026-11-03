@@ -63,7 +63,7 @@ def review_tools(doc, workflow, permitted):
     if can_share:
         from frappe.share import get_users
         shares = get_users(doc.doctype, doc.name)
-    return dict(fields=fields, can_edit=draft, can_assign=writable, can_share=can_share, can_tag=writable, can_attach=writable, can_edit_advances=can_edit_advances, advances=advances, assignments=assignments, shares=shares, tags=[s.strip() for s in cstr(doc.get("_user_tags")).split(",") if s.strip()], employee=doc.get("employee") if "employee" in permitted else None, currency=doc.get("currency") if "currency" in permitted else None, edit_note=_("Claim fields and advance links can be edited only on a writable draft. Submitted claims require the native correction/amendment process."))
+    return dict(date_editor=invoice_dates(doc, workflow, permitted), fields=fields, can_edit=draft, can_assign=writable, can_share=can_share, can_tag=writable, can_attach=writable, can_edit_advances=can_edit_advances, advances=advances, assignments=assignments, shares=shares, tags=[s.strip() for s in cstr(doc.get("_user_tags")).split(",") if s.strip()], employee=doc.get("employee") if "employee" in permitted else None, currency=doc.get("currency") if "currency" in permitted else None, edit_note=_("Claim fields and advance links can be edited only on a writable draft. Submitted claims require the native correction/amendment process."))
 
 
 def _locked(doctype, name, modified, draft=False):
@@ -231,3 +231,60 @@ def remove_attachment(doctype, name, modified, file_name):
     frappe.delete_doc("File", file.name)
     doc.add_comment("Comment", _("My Work: removed attachment {0}").format(escape(cstr(file.file_name))))
     return {"data": {"name": name}}
+
+
+def invoice_dates(doc, workflow, permitted):
+    """Expose only writable draft invoice dates, including every payment installment."""
+    if doc.doctype not in ("Sales Invoice", "Purchase Invoice") or not _draft_editable(doc, workflow):
+        return None
+    meta = frappe.get_meta(doc.doctype)
+    names = ["posting_date", "due_date"]
+    if doc.doctype == "Purchase Invoice":
+        names.append("bill_date")
+    if any(name not in permitted or not _field_writable(doc, meta.get_field(name)) for name in names):
+        return None
+    schedule = doc.get("payment_schedule") or []
+    if schedule:
+        table = meta.get_field("payment_schedule")
+        child = frappe.get_meta(table.options)
+        allowed = get_permitted_fields(table.options, parenttype=doc.doctype)
+        from my_work.api import _readable_table
+        if not _readable_table(doc, meta, "payment_schedule") or not _field_writable(doc, table) or "due_date" not in allowed or not _field_writable(doc, child.get_field("due_date")):
+            return None
+    return dict(fields=[dict(fieldname=n, label=meta.get_field(n).label, value=doc.get(n)) for n in names],
+                schedule=[dict(name=r.name, idx=r.idx, due_date=r.due_date) for r in schedule])
+
+
+@frappe.whitelist(methods=["POST"])
+def update_invoice_dates(doctype, name, modified, dates, schedule=None):
+    """Save explicitly chosen dates through the native invoice controller; never submit."""
+    from frappe.utils import getdate
+    doc = _locked(doctype, name, modified, draft=True)
+    permitted = get_permitted_fields(doctype)
+    editor = invoice_dates(doc, _workflow(doc), permitted)
+    if not editor:
+        frappe.throw(_("Invoice dates cannot be edited in this state."), frappe.PermissionError)
+    dates = frappe.parse_json(dates)
+    schedule = frappe.parse_json(schedule) if schedule else []
+    expected = {f["fieldname"] for f in editor["fields"]}
+    if not isinstance(dates, dict) or set(dates) != expected:
+        frappe.throw(_("Refresh and provide all invoice dates."))
+    for key, value in dates.items():
+        if not value and key != "bill_date":
+            frappe.throw(_("Posting Date and Due Date are required."))
+        doc.set(key, getdate(value) if value else None)
+    if not isinstance(schedule, list) or len(schedule) != len(editor["schedule"]):
+        frappe.throw(_("The payment schedule changed. Refresh and try again."))
+    by_name = {r.get("name"): r.get("due_date") for r in schedule if isinstance(r, dict)}
+    if set(by_name) != {r["name"] for r in editor["schedule"]}:
+        frappe.throw(_("The payment schedule changed. Refresh and try again."))
+    for row in doc.get("payment_schedule") or []:
+        if not by_name[row.name]:
+            frappe.throw(_("Each installment needs a Due Date."))
+        row.due_date = getdate(by_name[row.name])
+    if doc.get("payment_schedule"):
+        doc.set_due_date()
+        if getdate(doc.due_date) != getdate(dates["due_date"]):
+            frappe.throw(_("Due Date must match the latest payment installment date."))
+    doc.save()
+    return dict(name=doc.name, modified=doc.modified)
